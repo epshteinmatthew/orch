@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>orch</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script>
+      document.documentElement.dataset.theme =
+        localStorage.getItem("orch.theme") ||
+        (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    </script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div>
+          <h1>orch</h1>
+          <p class="tagline">Cursor orchestrates · OpenCode executes</p>
+        </div>
+        <button type="button" id="theme-btn" class="ghost">Light</button>
+      </header>
+
+      <form id="run-form" class="panel">
+        <fieldset class="settings">
+          <legend>Orchestrator</legend>
+          <div class="row">
+            <label>
+              Provider
+              <select id="orchestrator" name="orchestrator">
+                <option value="cursor">Cursor</option>
+              </select>
+            </label>
+            <label class="grow">
+              <span id="orchestrator-key-label">API key</span>
+              <input
+                id="orchestratorApiKey"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+              />
+            </label>
+          </div>
+          <div class="row align-end">
+            <label class="grow">
+              Model
+              <input
+                id="orchestratorModel"
+                list="orchestrator-models"
+                autocomplete="off"
+                spellcheck="false"
+              />
+              <datalist id="orchestrator-models"></datalist>
+            </label>
+            <button type="button" id="load-orch-models-btn" class="ghost">Load models</button>
+          </div>
+          <p id="orchestrator-models-result" class="hint" hidden></p>
+        </fieldset>
+
+        <fieldset class="settings">
+          <legend>OpenCode worker</legend>
+          <div class="row">
+            <label class="grow">
+              OpenCode API key
+              <input
+                id="opencodeApiKey"
+                type="password"
+                autocomplete="off"
+                spellcheck="false"
+                placeholder="Optional (falls back to your OpenCode login)"
+              />
+            </label>
+          </div>
+          <div class="row align-end">
+            <label class="grow">
+              OpenCode model (always free)
+              <select id="opencodeModel">
+                <option value="">Loading models…</option>
+              </select>
+            </label>
+            <button type="button" id="refresh-models-btn" class="ghost">Refresh</button>
+            <button type="button" id="test-opencode-btn" class="ghost">Test OpenCode</button>
+          </div>
+          <p id="opencode-test-result" class="hint" hidden></p>
+        </fieldset>
+        <p class="hint">Keys are saved in this browser only and sent to the local server per run.</p>
+
+        <label>
+          Work folder
+          <div class="input-with-button">
+            <input
+              id="workDir"
+              name="workDir"
+              type="text"
+              required
+              placeholder="/path/to/project"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <button
+              type="button"
+              id="browse-btn"
+              class="ghost icon-btn"
+              title="Choose folder…"
+              aria-label="Choose folder"
+            >
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path
+                  fill="currentColor"
+                  d="M10 4l2 2h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h6z"
+                />
+              </svg>
+            </button>
+          </div>
+        </label>
+
+        <label>
+          Goal
+          <textarea
+            id="goal"
+            name="goal"
+            rows="6"
+            placeholder="Describe what to build…&#10;Leave blank to use GOAL.md / PROMPT.md in the folder."
+          ></textarea>
+        </label>
+
+        <div class="row">
+          <label>
+            QC rules
+            <select id="qcMode">
+              <option value="off">Off</option>
+              <option value="on">On: orchestrator enforces the rules below</option>
+            </select>
+          </label>
+        </div>
+        <label id="qc-rules-label" hidden>
+          QC rules (checked against every OpenCode step; the run can't finish until all pass)
+          <textarea
+            id="qcRules"
+            rows="6"
+            placeholder="- Every new function has a unit test&#10;- npm test passes&#10;- No TODO comments left in changed files&#10;- No secrets or API keys committed"
+          ></textarea>
+        </label>
+
+        <div class="row align-end">
+          <label>
+            Max iters
+            <input id="maxIterations" name="maxIterations" type="number" min="1" max="50" value="15" />
+          </label>
+          <label class="check">
+            <input id="stepMode" type="checkbox" />
+            Step-by-step: approve or edit each orchestrator decision
+          </label>
+        </div>
+
+        <div class="actions">
+          <button type="submit" id="start-btn">Start</button>
+          <button type="button" id="cancel-btn" disabled>Cancel</button>
+          <button type="button" id="load-btn" class="ghost">Load goal from folder</button>
+        </div>
+        <p id="health" class="health"></p>
+      </form>
+
+      <section class="panel" id="runs-panel" hidden>
+        <div class="log-header">
+          <h2>Runs</h2>
+        </div>
+        <ul id="runs-list" class="runs"></ul>
+      </section>
+
+      <section class="panel approval" id="approval-panel" hidden>
+        <div class="log-header">
+          <h2 id="approval-title">Approve step</h2>
+        </div>
+        <p id="approval-reason" class="approval-reason"></p>
+        <label id="approval-prompt-label">
+          Prompt for OpenCode (edit before sending if you like)
+          <textarea id="approval-prompt" rows="8"></textarea>
+        </label>
+        <label>
+          Feedback for the orchestrator (used when rejecting)
+          <textarea id="approval-feedback" rows="3" placeholder="e.g. Use SQLite instead of Postgres, and add tests first."></textarea>
+        </label>
+        <div class="actions">
+          <button type="button" id="approve-btn">Send to OpenCode</button>
+          <button type="button" id="approve-all-btn" class="ghost">Approve and stop asking</button>
+          <button type="button" id="reject-btn" class="ghost">Reject and re-plan</button>
+        </div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="log-header">
+          <h2>Run log</h2>
+          <div class="log-controls">
+            <label class="check" id="run-step-toggle" hidden>
+              <input id="runStepMode" type="checkbox" />
+              Step-by-step
+            </label>
+            <span id="status-pill" class="pill idle">idle</span>
+            <button type="button" id="clear-log-btn" class="ghost small">Clear</button>
+          </div>
+        </div>
+        <pre id="log" class="log"></pre>
+      </section>
+    </main>
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

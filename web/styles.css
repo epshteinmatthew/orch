@@ -1,0 +1,292 @@
+:root {
+  --bg: #fff;
+  --fg: #000;
+  --muted: #666;
+  --border: #000;
+  --font: ui-sans-serif, system-ui, sans-serif;
+  --mono: ui-monospace, "SF Mono", monospace;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #000;
+  --fg: #fff;
+  --muted: #999;
+  --border: #fff;
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+.shell {
+  max-width: 860px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+  display: grid;
+  gap: 1.5rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.tagline,
+.hint,
+.health {
+  margin: 0.25rem 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+form.panel {
+  display: grid;
+  gap: 1rem;
+}
+
+.settings {
+  margin: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  display: grid;
+  gap: 0.75rem;
+}
+
+.settings legend {
+  padding: 0 0.25rem;
+  font-size: 0.8rem;
+}
+
+label {
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+}
+
+input,
+textarea,
+select,
+button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 0;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  padding: 0.4rem 0.5rem;
+}
+
+textarea {
+  resize: vertical;
+  min-height: 6rem;
+  font-family: var(--mono);
+}
+
+input:focus,
+textarea:focus,
+select:focus,
+button:focus-visible {
+  outline: 1px solid var(--fg);
+  outline-offset: 1px;
+}
+
+button {
+  padding: 0.4rem 0.8rem;
+  cursor: pointer;
+  background: var(--fg);
+  color: var(--bg);
+}
+
+button.ghost {
+  background: var(--bg);
+  color: var(--fg);
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.row {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.row.align-end {
+  align-items: flex-end;
+}
+
+.grow {
+  flex: 1;
+  min-width: 180px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.input-with-button {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 0.6rem;
+  flex-shrink: 0;
+}
+
+.hint.bad {
+  color: var(--fg);
+  font-weight: 600;
+}
+
+.log-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.log-header h2 {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.pill {
+  font-size: 0.75rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid var(--border);
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+}
+
+.check input {
+  width: auto;
+  margin: 0;
+}
+
+button.small {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.log-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.approval {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 2px solid var(--border);
+}
+
+.approval .log-header {
+  margin: 0;
+}
+
+.approval-reason {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.runs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+}
+
+.runs li {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.runs li + li {
+  border-top: 1px solid var(--border);
+}
+
+.runs li.viewing {
+  font-weight: 600;
+}
+
+.runs .run-info {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.runs .run-meta {
+  color: var(--muted);
+}
+
+.runs button {
+  padding: 0.15rem 0.5rem;
+  font-size: 0.75rem;
+}
+
+.log {
+  margin: 0;
+  max-height: 32rem;
+  overflow: auto;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.log .meta,
+.log .progress {
+  color: var(--muted);
+}
+
+.log .err {
+  font-weight: 700;
+}
