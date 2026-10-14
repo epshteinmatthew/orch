@@ -4,7 +4,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { existsSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { nanoid } from "nanoid";
 import {
@@ -15,6 +15,8 @@ import {
 } from "./orchestrators/index.js";
 import { runLoop, type ApprovalResponse, type RunEvent } from "./loop.js";
 import { pickFolder } from "./pickFolder.js";
+import { commitAndPush, discardChanges, gitStatus } from "./git.js";
+import { askCursor } from "./direct.js";
 import { OpenCodeWorker, type FreeModel } from "./workers/index.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -182,6 +184,97 @@ app.post("/api/opencode/test", async (c) => {
       model: body.model?.trim() || undefined,
     }),
   );
+});
+
+function activeRunInFolder(workDir: string): RunState | undefined {
+  const dir = resolve(workDir);
+  return [...runs.values()].find(
+    (r) => !TERMINAL_STATUSES.has(r.status) && resolve(r.workDir) === dir,
+  );
+}
+
+app.get("/api/git/status", async (c) => {
+  const workDir = c.req.query("workDir")?.trim();
+  if (!workDir) return c.json({ error: "workDir query param required" }, 400);
+  const status = await gitStatus(workDir);
+  return c.json({ ...status, activeRunId: activeRunInFolder(workDir)?.id ?? null });
+});
+
+app.post("/api/git/commit-push", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    workDir?: string;
+    message?: string;
+    push?: boolean;
+  };
+  const workDir = body.workDir?.trim();
+  if (!workDir) return c.json({ error: "workDir is required" }, 400);
+  const active = activeRunInFolder(workDir);
+  if (active) {
+    return c.json(
+      { error: `Run ${active.id} is still working in this folder. Wait for it to finish or cancel it first.` },
+      409,
+    );
+  }
+  const message = body.message?.trim() || "Changes from orch";
+  return c.json(await commitAndPush(workDir, message, body.push !== false));
+});
+
+app.post("/api/git/discard", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as { workDir?: string };
+  const workDir = body.workDir?.trim();
+  if (!workDir) return c.json({ error: "workDir is required" }, 400);
+  const active = activeRunInFolder(workDir);
+  if (active) {
+    return c.json(
+      { error: `Run ${active.id} is still working in this folder. Wait for it to finish or cancel it first.` },
+      409,
+    );
+  }
+  return c.json(await discardChanges(workDir));
+});
+
+app.post("/api/ask", async (c) => {
+  const body = (await c.req.json().catch(() => ({}))) as {
+    workDir?: string;
+    question?: string;
+    apiKey?: string;
+    model?: string;
+  };
+  const workDir = body.workDir?.trim();
+  if (!workDir) return c.json({ error: "workDir is required" }, 400);
+  const question = body.question?.trim();
+  if (!question) return c.json({ error: "question is required" }, 400);
+
+  const id = nanoid(10);
+  const controller = new AbortController();
+  const run: RunState = {
+    id,
+    events: [],
+    listeners: new Set(),
+    controller,
+    startedAt: Date.now(),
+    status: "starting",
+    workDir,
+    goalPreview: `Ask: ${question.split("\n")[0]!.slice(0, 110)}`,
+    orchestrator: "cursor (ask)",
+    iteration: 0,
+    stepMode: false,
+  };
+  runs.set(id, run);
+
+  void askCursor({
+    workDir,
+    question,
+    apiKey: body.apiKey?.trim() || undefined,
+    model: body.model?.trim() || undefined,
+    signal: controller.signal,
+    emit: (event) => pushEvent(run, event),
+  }).catch((err) => {
+    pushEvent(run, { type: "error", message: err instanceof Error ? err.message : String(err) });
+    pushEvent(run, { type: "status", status: "failed" });
+  });
+
+  return c.json({ runId: id });
 });
 
 app.post("/api/pick-folder", async (c) => {

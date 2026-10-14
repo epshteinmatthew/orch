@@ -23,6 +23,8 @@ Requires `opencode` on your `PATH` (already authenticated) and a Cursor API key.
 2. Enter a **Goal**, or put `GOAL.md` / `PROMPT.md` in that folder (UI text and file are merged if both exist).
 3. Click **Start**. Watch the run log: orchestrator decisions → OpenCode prompts → rinse/repeat until done.
 
+**Just ask** (next to Start) skips the loop and has Cursor give a short answer to the question in the Goal box (using the Cursor key/model from the Orchestrator section). Cursor only ever gets read-only tools (read, grep, glob, ls, search, lints), both here and as orchestrator; OpenCode is the only thing that changes files. **Git** commits the work folder, then pulls (rebasing onto the remote; conflicts abort cleanly) and pushes, or just commits / discards changes.
+
 ## Architecture
 
 | Role | Default | Swap |

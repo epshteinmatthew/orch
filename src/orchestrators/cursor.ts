@@ -4,10 +4,18 @@ import {
   CursorAgentError,
   getDefaultSdkStateRoot,
   JsonlLocalAgentStore,
+  type ToolName,
 } from "@cursor/sdk";
 import { join } from "node:path";
 import { buildPlanPrompt, extractJson } from "./prompt.js";
 import type { ModelOption, Orchestrator, PlanDecision, PlanInput } from "./types.js";
+
+/**
+ * Cursor may only look at the work folder; OpenCode is the only thing allowed to change it.
+ * An allowlist (not a denylist) so tools added to the platform later can't write either.
+ * Excludes "shell" (can write files) and "task" (subagents get their own toolsets).
+ */
+export const CURSOR_READ_ONLY_TOOLS: ToolName[] = ["read", "grep", "glob", "ls", "semSearch", "readLints"];
 
 export async function listCursorModels(apiKey: string): Promise<ModelOption[]> {
   const models = await Cursor.models.list({ apiKey });
@@ -31,6 +39,7 @@ export class CursorOrchestrator implements Orchestrator {
     this.agent = await Agent.create({
       apiKey: this.opts.apiKey,
       model: { id: this.opts.model },
+      tools: CURSOR_READ_ONLY_TOOLS,
       local: {
         cwd: this.opts.workDir,
         // JSONL avoids the SDK's node:sqlite requirement (Node >= 22.13 with stable sqlite).

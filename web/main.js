@@ -248,6 +248,7 @@ browseBtn.addEventListener("click", async () => {
     if (data.path) {
       workDirEl.value = data.path;
       localStorage.setItem(STORAGE_KEYS.workDir, data.path);
+      refreshGit();
     }
   } catch (err) {
     appendLog("err", `Folder picker: ${err instanceof Error ? err.message : err}`);
@@ -300,7 +301,10 @@ function formatEvent(event) {
       );
       break;
     case "progress":
-      appendLog("progress", `  · opencode: ${event.message}`);
+      appendLog("progress", `  · ${event.source || "opencode"}: ${event.message}`);
+      break;
+    case "answer":
+      appendLog("worker", `[cursor]\n${event.text}`);
       break;
     case "approval":
       showApproval(event);
@@ -361,6 +365,7 @@ function subscribe(runId) {
     "approval_resolved",
     "worker",
     "progress",
+    "answer",
     "error",
   ]) {
     eventSource.addEventListener(type, (msg) => {
@@ -381,6 +386,7 @@ function subscribe(runId) {
         hideApproval();
         startBtn.disabled = false;
         cancelBtn.disabled = true;
+        refreshGit();
       }
     });
   }
@@ -598,6 +604,151 @@ async function cancelRun(runId) {
   refreshRuns();
 }
 
+const gitStatusEl = document.getElementById("git-status");
+const gitResultEl = document.getElementById("git-result");
+const commitMessageEl = document.getElementById("commitMessage");
+const commitPushBtn = document.getElementById("commit-push-btn");
+const commitBtn = document.getElementById("commit-btn");
+const discardBtn = document.getElementById("discard-btn");
+let gitInfo = null;
+
+function setGitButtonsDisabled(disabled) {
+  commitPushBtn.disabled = commitBtn.disabled = discardBtn.disabled = disabled;
+}
+
+function defaultCommitMessage() {
+  const goal = document.getElementById("goal").value.trim().split("\n")[0];
+  return goal ? `orch: ${goal.slice(0, 72)}` : "Changes from orch";
+}
+
+async function refreshGit() {
+  const workDir = workDirEl.value.trim();
+  commitMessageEl.placeholder = defaultCommitMessage();
+  if (!workDir) {
+    gitInfo = null;
+    gitStatusEl.textContent = "Set a work folder to see its git status.";
+    setGitButtonsDisabled(true);
+    return;
+  }
+  try {
+    const res = await fetch(`/api/git/status?workDir=${encodeURIComponent(workDir)}`);
+    gitInfo = await res.json();
+    if (!res.ok) throw new Error(gitInfo.error || res.statusText);
+  } catch (err) {
+    gitInfo = null;
+    gitStatusEl.textContent = `Could not read git status: ${err instanceof Error ? err.message : err}`;
+    setGitButtonsDisabled(true);
+    return;
+  }
+
+  if (!gitInfo.isRepo) {
+    gitStatusEl.textContent = "Not a git repository.";
+    setGitButtonsDisabled(true);
+    return;
+  }
+  const parts = [`Branch ${gitInfo.branch}`];
+  parts.push(
+    gitInfo.changes.length
+      ? `${gitInfo.changes.length} changed file${gitInfo.changes.length === 1 ? "" : "s"}`
+      : "no uncommitted changes",
+  );
+  if (gitInfo.ahead) parts.push(`${gitInfo.ahead} commit${gitInfo.ahead === 1 ? "" : "s"} not pushed`);
+  parts.push(
+    gitInfo.upstream
+      ? `tracks ${gitInfo.upstream}`
+      : gitInfo.remote
+        ? `will push to ${gitInfo.remote}/${gitInfo.branch}`
+        : "no remote",
+  );
+  if (gitInfo.activeRunId) parts.push("a run is still working here");
+  gitStatusEl.textContent = parts.join(" · ");
+  gitStatusEl.title = gitInfo.changes.join("\n");
+
+  const busy = Boolean(gitInfo.activeRunId);
+  commitBtn.disabled = discardBtn.disabled = busy || gitInfo.changes.length === 0;
+  commitPushBtn.disabled =
+    busy || !gitInfo.remote || (gitInfo.changes.length === 0 && gitInfo.ahead === 0 && gitInfo.upstream);
+}
+
+async function commit(push) {
+  setGitButtonsDisabled(true);
+  gitResultEl.hidden = false;
+  gitResultEl.className = "hint";
+  gitResultEl.textContent = push ? "Committing, pulling, and pushing…" : "Committing…";
+  try {
+    const res = await fetch("/api/git/commit-push", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        workDir: workDirEl.value.trim(),
+        message: commitMessageEl.value.trim() || defaultCommitMessage(),
+        push,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    const lines = [...data.log];
+    if (data.error) lines.push(data.error);
+    gitResultEl.className = data.error ? "hint bad" : "hint";
+    gitResultEl.textContent =
+      (data.error ? "✗ " : "✓ ") +
+      [data.committed ? `Committed ${data.commit}` : null, data.pulled ? "Pulled" : null, data.pushed ? "Pushed" : null]
+        .filter(Boolean)
+        .join(", ") +
+      (lines.length ? `\n${lines.join("\n")}` : "");
+    if (data.committed) commitMessageEl.value = "";
+  } catch (err) {
+    gitResultEl.className = "hint bad";
+    gitResultEl.textContent = `✗ ${err instanceof Error ? err.message : err}`;
+  }
+  refreshGit();
+}
+
+async function discard() {
+  const changes = gitInfo?.changes ?? [];
+  if (!changes.length) return;
+  const shown = changes.slice(0, 15).join("\n");
+  const more = changes.length > 15 ? `\n…and ${changes.length - 15} more` : "";
+  const ok = confirm(
+    `Discard ALL uncommitted changes in this folder?\n\n` +
+      `Edited files go back to the last commit and new (untracked) files are deleted. This cannot be undone.\n\n` +
+      `${shown}${more}`,
+  );
+  if (!ok) return;
+
+  setGitButtonsDisabled(true);
+  gitResultEl.hidden = false;
+  gitResultEl.className = "hint";
+  gitResultEl.textContent = "Discarding…";
+  try {
+    const res = await fetch("/api/git/discard", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workDir: workDirEl.value.trim() }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    gitResultEl.className = data.error ? "hint bad" : "hint";
+    gitResultEl.textContent = data.error
+      ? `✗ ${data.error}`
+      : `✓ Discarded ${data.discarded.length} change${data.discarded.length === 1 ? "" : "s"}`;
+  } catch (err) {
+    gitResultEl.className = "hint bad";
+    gitResultEl.textContent = `✗ ${err instanceof Error ? err.message : err}`;
+  }
+  refreshGit();
+}
+
+discardBtn.addEventListener("click", discard);
+commitPushBtn.addEventListener("click", () => commit(true));
+commitBtn.addEventListener("click", () => commit(false));
+document.getElementById("git-refresh-btn").addEventListener("click", refreshGit);
+workDirEl.addEventListener("change", refreshGit);
+document.getElementById("goal").addEventListener("input", () => {
+  commitMessageEl.placeholder = defaultCommitMessage();
+});
+refreshGit();
+
 document.getElementById("clear-log-btn").addEventListener("click", () => {
   logEl.textContent = "";
   const viewingActiveRun = currentRunId && !TERMINAL_STATUSES.has(statusPill.textContent);
@@ -694,6 +845,54 @@ cancelBtn.addEventListener("click", () => {
   if (currentRunId) cancelRun(currentRunId);
 });
 
+const goalEl = document.getElementById("goal");
+const askBtn = document.getElementById("ask-btn");
+
+function runInProgress() {
+  return !["idle", "done", "failed", "cancelled"].includes(statusPill.textContent);
+}
+
+async function askCursor() {
+  const workDir = workDirEl.value.trim();
+  const question = goalEl.value.trim();
+  if (!workDir) {
+    appendLog("err", "Set a work folder first");
+    return;
+  }
+  if (!question) {
+    appendLog("err", "Type a question in the Goal / question box first");
+    goalEl.focus();
+    return;
+  }
+  const onCursor = orchSelectEl.value === "cursor";
+  const apiKey = (onCursor ? orchKeyEl.value : localStorage.getItem(STORAGE_KEYS.orchestratorKey("cursor")) || "").trim();
+  const model = (onCursor ? orchModelEl.value : localStorage.getItem(STORAGE_KEYS.orchestratorModel("cursor")) || "").trim();
+  const cursorMeta = orchestrators.find((o) => o.id === "cursor");
+  if (!apiKey && cursorMeta && !cursorMeta.hasEnvKey) {
+    appendLog("err", "Enter a Cursor API key in the Orchestrator section (pick Cursor as the provider)");
+    return;
+  }
+
+  askBtn.disabled = true;
+  try {
+    const res = await fetch("/api/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ workDir, question, apiKey, model }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || res.statusText);
+    subscribe(data.runId);
+  } catch (err) {
+    setStatus("failed");
+    appendLog("err", err instanceof Error ? err.message : String(err));
+  } finally {
+    askBtn.disabled = runInProgress();
+  }
+}
+
+askBtn.addEventListener("click", askCursor);
+
 loadBtn.addEventListener("click", async () => {
   const workDir = document.getElementById("workDir").value.trim();
   if (!workDir) {
@@ -735,5 +934,6 @@ const observer = new MutationObserver(() => {
     startBtn.disabled = false;
     cancelBtn.disabled = true;
   }
+  askBtn.disabled = runInProgress();
 });
 observer.observe(statusPill, { childList: true, characterData: true, subtree: true });

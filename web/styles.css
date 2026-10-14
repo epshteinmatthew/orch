@@ -207,6 +207,19 @@ button.small {
   font-size: 0.75rem;
 }
 
+.git-panel {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.git-panel .log-header {
+  margin: 0;
+}
+
+#git-result {
+  white-space: pre-wrap;
+}
+
 .log-controls {
   display: flex;
   align-items: center;

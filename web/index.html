@@ -115,12 +115,12 @@
         </label>
 
         <label>
-          Goal
+          Goal / question
           <textarea
             id="goal"
             name="goal"
             rows="6"
-            placeholder="Describe what to build…&#10;Leave blank to use GOAL.md / PROMPT.md in the folder."
+            placeholder="Describe what to build (Start), or ask a question about the folder (Just ask)…&#10;For Start, leave blank to use GOAL.md / PROMPT.md in the folder."
           ></textarea>
         </label>
 
@@ -156,8 +156,13 @@
         <div class="actions">
           <button type="submit" id="start-btn">Start</button>
           <button type="button" id="cancel-btn" disabled>Cancel</button>
+          <button type="button" id="ask-btn">Just ask</button>
           <button type="button" id="load-btn" class="ghost">Load goal from folder</button>
         </div>
+        <p class="hint">
+          <strong>Just ask</strong> sends the box above to Cursor as a question about the folder (key and model from the
+          Orchestrator section). Cursor can only read files; only OpenCode ever changes them.
+        </p>
         <p id="health" class="health"></p>
       </form>
 
@@ -201,6 +206,21 @@
           </div>
         </div>
         <pre id="log" class="log"></pre>
+      </section>
+
+      <section class="panel git-panel">
+        <div class="log-header">
+          <h2>Git</h2>
+          <button type="button" id="git-refresh-btn" class="ghost small">Refresh</button>
+        </div>
+        <p id="git-status" class="hint">Set a work folder to see its git status.</p>
+        <div class="input-with-button">
+          <input id="commitMessage" type="text" autocomplete="off" placeholder="Commit message" />
+          <button type="button" id="commit-push-btn">Commit, pull &amp; push</button>
+          <button type="button" id="commit-btn" class="ghost">Commit only</button>
+          <button type="button" id="discard-btn" class="ghost">Discard changes</button>
+        </div>
+        <p id="git-result" class="hint" hidden></p>
       </section>
     </main>
     <script type="module" src="/main.js"></script>

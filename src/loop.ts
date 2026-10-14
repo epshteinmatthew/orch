@@ -28,7 +28,8 @@ export type RunEvent =
       feedback?: string;
     }
   | { type: "worker"; iteration: number; summary: string; diffSummary?: string }
-  | { type: "progress"; iteration: number; message: string }
+  | { type: "progress"; iteration: number; message: string; source?: string }
+  | { type: "answer"; text: string }
   | { type: "error"; message: string }
   | { type: "log"; message: string };
 
